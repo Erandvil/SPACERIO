@@ -84,6 +84,7 @@ float TIME_MULTIPLER = 0.5f;
 
 bool showPanel = false;
 bool showPlanetZoom = false;
+std::string currentPlanetToShow = "Earth";
 
 struct Particle 
 {
@@ -118,6 +119,9 @@ struct Planet
 };
 
 std::map <std::string, Planet> planets;
+
+std::vector<std::string> planetsNames;
+int currentPlanetIndex = 0;
 
 int main()
 {
@@ -375,6 +379,12 @@ int main()
         16.0f, 165.0f, 0.3f, 0.0f, 0.0f,
         &basic_planet_shader
     };
+
+    planetsNames.emplace_back("Earth");
+    for (auto& [name, planet] : planets)
+    {
+        planetsNames.emplace_back(name);
+    }
     
     while (!glfwWindowShouldClose(window))
     {
@@ -485,16 +495,7 @@ int main()
 
         earth_shader.setMat4("model", earth_model);
 
-        if (showPlanetZoom)
-        {
-            glm::vec3 copy_of_earth_model = earth_model[3];
-            copy_of_earth_model.z += 1.0f;
-            cameraPos = copy_of_earth_model;
-            cameraFront.x = 0.0f;
-            cameraFront.z = -1.0f;
-            cameraFront.y = 0.0f;
-        }
-
+        
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, earth_texture);
         glActiveTexture(GL_TEXTURE1);
@@ -521,7 +522,7 @@ int main()
         glBindTexture(GL_TEXTURE_2D, moon_texture);
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
-
+        
         for (auto& [name, planet] : planets)
         {
             planet.shader->use();
@@ -532,6 +533,17 @@ int main()
             model = glm::translate(model, glm::vec3(planet.orbitRadius, 0.0f, 0.0f));
             model = glm::scale(model, glm::vec3(planet.scale));
 
+            if (currentPlanetToShow == name && showPlanetZoom)
+            {
+                glm::vec3 copy_of_model = model[3];
+                copy_of_model.z += 1.0f;
+                cameraPos = copy_of_model;
+
+                cameraFront.x = 0.0f;
+                cameraFront.z = -1.0f;
+                cameraFront.y = 0.0f;
+            }
+            
             planet.shader->setMat4("model", model);
             planet.shader->setMat4("projection", projection);
             planet.shader->setMat4("view", view);
@@ -540,15 +552,24 @@ int main()
             
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, planet.diffuseTexture);
-
+            
             glBindVertexArray(VAO);
             glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
         }
-
+        
+        if (showPlanetZoom)
+        {
+            if (currentPlanetToShow == "Earth")
+            {
+                glm::vec3 copy_of_earth_model = earth_model[3];
+                copy_of_earth_model.z += 1.0f;
+                cameraPos = copy_of_earth_model;
+            }
+        }
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE);
         glDepthMask(GL_FALSE);
-
+        
         particle_shader.use();
         particle_shader.setMat4("projection", projection);
         particle_shader.setMat4("view", view);
@@ -824,5 +845,18 @@ void key_callback(GLFWwindow *window, int key, int scancodem, int action, int mo
     if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
     {
         showPlanetZoom = !showPlanetZoom;
+    }
+
+    if (key == GLFW_KEY_RIGHT && action == GLFW_PRESS)
+    {
+        if (planetsNames.size() != 0)
+        {
+            currentPlanetIndex++;
+            if (currentPlanetIndex > planetsNames.size() - 1)
+            {
+                currentPlanetIndex = 0;
+            }
+            currentPlanetToShow = planetsNames[currentPlanetIndex];
+        }
     }
 }
