@@ -117,6 +117,7 @@ struct Planet
     
     Shader* shader;
     std::string description;
+    glm::mat4 model;
 };
 
 std::map <std::string, Planet> planets;
@@ -343,6 +344,15 @@ int main()
         "Często nazywana „siostrą Ziemi” ze względu na podobną wielkość. Ma jednak gęstą atmosferę z dwutlenku węgla, która wywołuje gigantyczny efekt cieplarniany – jest najgorętszą planetą w Układzie Słonecznym. Co ciekawe, obraca się w przeciwną stronę niż większość planet."
     };
 
+    planets["Earth"] = 
+    {
+        "EARTH",
+        earth_texture, earth_specular_map_texture, earth_normals_texture,
+        6.0f, 1.0f, 0.3f, 0.0f, 0.0f,
+        &earth_shader,
+        "Najdalsza planeta od Słońca. Panują tam najsilniejsze wiatry w Układzie Słonecznym, osiągające prędkość ponad 2000 km/h. Ma piękny, głęboki niebieski kolor i jest lodowym olbrzymem."
+    };
+
     planets["Mars"] = 
     {
         "MARS",
@@ -387,13 +397,12 @@ int main()
         &basic_planet_shader,
         "Najdalsza planeta od Słońca. Panują tam najsilniejsze wiatry w Układzie Słonecznym, osiągające prędkość ponad 2000 km/h. Ma piękny, głęboki niebieski kolor i jest lodowym olbrzymem."
     };
-
-    planetsNames.emplace_back("Earth");
+    
     for (auto& [name, planet] : planets)
     {
         planetsNames.emplace_back(name);
     }
-    
+
     while (!glfwWindowShouldClose(window))
     {
         
@@ -465,13 +474,36 @@ int main()
 
         float CURRENT_TIME = (float)glfwGetTime() * TIME_MULTIPLER;
         
+        for (auto& [name, planet] : planets)
+        {
+            planet.rotationAngle = (2.0f * PI_NUMBER / planet.orbitTime) * CURRENT_TIME;
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::rotate(model, planet.rotationAngle, glm::vec3(0.0f, 1.0f, 0.0f));
+            model = glm::translate(model, glm::vec3(planet.orbitRadius, 0.0f, 0.0f));
+            model = glm::scale(model, glm::vec3(planet.scale));
+            planet.model = model;
+        }
+
+        if (showPlanetZoom)
+        {
+            Planet &target = planets[currentPlanetToShow];
+
+            glm::vec3 copy_of_model = target.model[3];
+            copy_of_model.z += 1.0f;
+            cameraPos = copy_of_model;
+
+            cameraFront.x = 0.0f;
+            cameraFront.z = -1.0f;
+            cameraFront.y = 0.0f;
+        }
+
         glm ::mat4 sun_model = glm::mat4(1.0f);
         glm::mat4 earth_model = glm::mat4(1.0f);
         glm::mat4 moon_model = glm::mat4(1.0f);
         
         float rotation = float(glfwGetTime()) * 0.1f;
         sun_model = glm::rotate(sun_model, glm::radians(rotation), glm::vec3(0.0f, 1.0f, 0.0f));
-        view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp); 
+        view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
         
         sun_shader.use();
         sun_shader.setMat4("model", sun_model);
@@ -481,35 +513,6 @@ int main()
         
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, sun_texture);
-        glBindVertexArray(VAO);
-        glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
-        
-        earth_shader.use();
-        earth_shader.setVec3("lightPos", lightPos);
-        earth_shader.setVec3("lightColor", lightColor);
-        earth_shader.setMat4("projection", projection);
-        earth_shader.setMat4("view", view);
-        earth_shader.setInt("ourTexture", 0);
-        earth_shader.setInt("specularTex", 1);
-        earth_shader.setInt("normalMap", 2);
-        earth_shader.setFloat("shininess", 2);
-        earth_shader.setVec3("viewPos", cameraPos);
-        float rotation_around_sun = (float)glfwGetTime() * 0.2f;
-        float rotation_around_own_axes = (float)glfwGetTime() * 0.8f;
-        earth_model = glm::rotate(earth_model, rotation_around_sun, glm::vec3(0.0f , 1.0f, 0.0f));
-        earth_model = glm::translate(earth_model, glm::vec3(EARTH_ORBIT_RADIUS, 0.0f, 0.0f));
-        earth_model = glm::scale(earth_model, glm::vec3(EARTH_SCALE));
-        earth_model = glm::rotate(earth_model, rotation_around_own_axes, glm::vec3(0.0f, 1.0f, 0.0f));
-
-        earth_shader.setMat4("model", earth_model);
-
-        
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, earth_texture);
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, earth_specular_map_texture);
-        glActiveTexture(GL_TEXTURE2);
-        glBindTexture(GL_TEXTURE_2D, earth_normals_texture);
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
         
@@ -534,45 +537,33 @@ int main()
         for (auto& [name, planet] : planets)
         {
             planet.shader->use();
-            
-            planet.rotationAngle = (2.0f * PI_NUMBER / planet.orbitTime) * CURRENT_TIME;
-            glm::mat4 model = glm::mat4(1.0f);
-            model = glm::rotate(model, planet.rotationAngle, glm::vec3(0.0f, 1.0f, 0.0f));
-            model = glm::translate(model, glm::vec3(planet.orbitRadius, 0.0f, 0.0f));
-            model = glm::scale(model, glm::vec3(planet.scale));
-
-            if (currentPlanetToShow == name && showPlanetZoom)
-            {
-                glm::vec3 copy_of_model = model[3];
-                copy_of_model.z += 1.0f;
-                cameraPos = copy_of_model;
-
-                cameraFront.x = 0.0f;
-                cameraFront.z = -1.0f;
-                cameraFront.y = 0.0f;
-            }
-            
-            planet.shader->setMat4("model", model);
+            planet.shader->setMat4("model", planet.model);
             planet.shader->setMat4("projection", projection);
             planet.shader->setMat4("view", view);
             planet.shader->setVec3("lightPos", lightPos);
             planet.shader->setVec3("lightColor", lightColor);
-            
+            planet.shader->setInt("diffuse", 0);
+
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, planet.diffuseTexture);
+
+            if (planet.diffuseTexture)
+            {
+                planet.shader->setVec3("viewPos", cameraPos);
+                planet.shader->setFloat("shininess", 32.0f);
+                planet.shader->setInt("specularTex", 1);
+                glActiveTexture(GL_TEXTURE1);
+                glBindTexture(GL_TEXTURE_2D, planet.specularTexture);
+            }
+            if (planet.normalTexture)
+            {
+                planet.shader->setInt("normalMap", 2);
+                glActiveTexture(GL_TEXTURE2);
+                glBindTexture(GL_TEXTURE_2D, planet.normalTexture);
+            }
             
             glBindVertexArray(VAO);
             glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
-        }
-        
-        if (showPlanetZoom)
-        {
-            if (currentPlanetToShow == "Earth")
-            {
-                glm::vec3 planetPos = glm::vec3(earth_model[3]);
-                cameraPos = planetPos + glm::vec3(0.0f, 0.5f, 2.0f);
-                cameraFront = glm::normalize(planetPos - cameraPos);
-            }
         }
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE);
@@ -599,10 +590,6 @@ int main()
             if (!showPlanetZoom)
             {
                 ImGui::Begin("Panel");
-                ImGui::Text("EARTH");
-                ImGui::SliderFloat("EARTH ORBIT RADIUS: ", &EARTH_ORBIT_RADIUS, 1.0f, 10.0f);
-                ImGui::SliderFloat("EARTH SCALE: ", &EARTH_SCALE, 0.0f, 1.0f);
-
                 for (auto& [name, planet] : planets)
                 {
                     ImGui::Text(planet.name.c_str());
@@ -617,22 +604,14 @@ int main()
             else 
             {
                 ImGui::Begin("Planeta");
-                if (currentPlanetToShow == "Earth")
+                for (auto& [name, planet] : planets)
                 {
-                    ImGui::Text("Earth");
-                    ImGui::Text("Twoja główna planeta w kodzie. Jedyna znana nam planeta z płynną wodą na powierzchni i życiem. W Twojej symulacji wyróżnia się tym, że używasz dla niej map normalnych (normal maps) i specular, co świetnie oddaje odbicia światła od oceanów.");
-                }
-                else 
-                {
-                    for (auto& [name, planet] : planets)
+                    if (currentPlanetToShow == name)
                     {
-                        if (currentPlanetToShow == name)
-                        {
-                            ImGui::Separator();
-                            ImGui::PushTextWrapPos(400.0f);
-                            ImGui::Text(planet.name.c_str());
-                            ImGui::Text(planet.description.c_str());
-                        }
+                        ImGui::Separator();
+                        ImGui::PushTextWrapPos(400.0f);
+                        ImGui::Text(planet.name.c_str());
+                        ImGui::Text(planet.description.c_str());
                     }
                 }
             }
