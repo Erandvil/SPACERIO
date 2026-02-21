@@ -6,6 +6,9 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <SFML/Audio.hpp>
+#include <SFML/System.hpp>
+#include <SFML/Graphics.hpp>
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 #include "include/imgui/imgui.h"
@@ -120,7 +123,24 @@ struct Planet
     glm::mat4 model;
 };
 
+struct Moon
+{
+    std::string name;
+    unsigned int diffuseTexture;
+
+    float scale;
+    float radiusFromPlanet;
+    
+    Planet* planet;
+
+    Shader* shader;
+    std::string description;
+    glm::mat4 model;
+};
+
+
 std::map <std::string, Planet> planets;
+std::map <std::string, Moon> moons;
 
 std::vector<std::string> planetsNames;
 int currentPlanetIndex = 0;
@@ -403,9 +423,22 @@ int main()
         planetsNames.emplace_back(name);
     }
 
+    moons["Moon"] = 
+    {
+        "MOON",
+        moon_texture,
+        0.3f, 2.0f, &planets["Earth"],
+        &basic_planet_shader,
+        "AA"
+    };
+
+    // sf::Music music;
+    // if (!music.openFromFile("resources/music/10 Minute Space Ambient Music.mp3")) return -1;
+    // music.setLoop(true);
+    // music.play();
+
     while (!glfwWindowShouldClose(window))
     {
-        
         processInput(window);
         
         int alive_particles = 0;
@@ -474,6 +507,7 @@ int main()
 
         float CURRENT_TIME = (float)glfwGetTime() * TIME_MULTIPLER;
         
+        
         for (auto& [name, planet] : planets)
         {
             planet.rotationAngle = (2.0f * PI_NUMBER / planet.orbitTime) * CURRENT_TIME;
@@ -482,6 +516,15 @@ int main()
             model = glm::translate(model, glm::vec3(planet.orbitRadius, 0.0f, 0.0f));
             model = glm::scale(model, glm::vec3(planet.scale));
             planet.model = model;
+        }
+        
+        for (auto& [name, moon] : moons)
+        {
+            float moon_rotation = (float)glfwGetTime() * 0.8f;
+            glm::mat4 moon_model = glm::rotate(moon.planet->model, moon_rotation, glm::vec3(0.0f, 1.0f, 0.0f));
+            moon_model = glm::translate(moon_model, glm::vec3(moon.radiusFromPlanet, 0.0f, 0.0f));
+            moon_model = glm::scale(moon_model, glm::vec3(moon.scale));
+            moon.model = moon_model;
         }
 
         if (showPlanetZoom)
@@ -523,16 +566,22 @@ int main()
         basic_planet_shader.setMat4("view", view);
         basic_planet_shader.setInt("ourTexture", 0);
         
-        float moon_rotation_earth = (float)glfwGetTime() * 0.8f;
-        moon_model = glm::rotate(earth_model, moon_rotation_earth, glm::vec3(0.0f , 1.0f, 0.0f));
-        moon_model = glm::translate(moon_model, glm::vec3(2.0f, 0.0f, 0.0f));
-        moon_model = glm::scale(moon_model, glm::vec3(0.3f));
-        basic_planet_shader.setMat4("model", moon_model);
-        
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, moon_texture);
-        glBindVertexArray(VAO);
-        glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
+        for (auto& [name, moon] : moons)
+        {
+            moon.shader->use();
+            moon.shader->setMat4("model", moon.model);
+            moon.shader->setMat4("projection", projection);
+            moon.shader->setMat4("view", view);
+            moon.shader->setVec3("lightPos", lightPos);
+            moon.shader->setVec3("lightColor", lightColor);
+            moon.shader->setInt("diffuse", 0);
+
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, moon.diffuseTexture);
+
+            glBindVertexArray(VAO);
+            glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
+        }
         
         for (auto& [name, planet] : planets)
         {
@@ -547,7 +596,7 @@ int main()
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, planet.diffuseTexture);
 
-            if (planet.diffuseTexture)
+            if (planet.specularTexture)
             {
                 planet.shader->setVec3("viewPos", cameraPos);
                 planet.shader->setFloat("shininess", 32.0f);
@@ -590,6 +639,7 @@ int main()
             if (!showPlanetZoom)
             {
                 ImGui::Begin("Panel");
+                ImGui::SliderFloat("Time Multipler: ", &TIME_MULTIPLER, 0.0f, 1.0f);
                 for (auto& [name, planet] : planets)
                 {
                     ImGui::Text(planet.name.c_str());

@@ -21,7 +21,7 @@ void main()
 
     // 2. Kolor bazowy i Ambient
     float ambientStrength = 0.1f; 
-    vec3 color = texture(diffuse, TexCoord).rgb; // Poprawiona nazwa
+    vec3 color = texture(diffuse, TexCoord).rgb;
     vec3 ambient = lightColor * ambientStrength * color;
 
     // 3. Diffuse (światło rozproszone)
