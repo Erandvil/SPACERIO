@@ -6,6 +6,9 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <SFML/Audio.hpp>
+#include <SFML/System.hpp>
+#include <SFML/Graphics.hpp>
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 #include "include/imgui/imgui.h"
@@ -84,6 +87,7 @@ float TIME_MULTIPLER = 0.5f;
 
 bool showPanel = false;
 bool showPlanetZoom = false;
+std::string currentPlanetToShow = "Earth";
 
 struct Particle 
 {
@@ -113,11 +117,33 @@ struct Planet
     float scale;
     float selfRotationSpeed;
     float rotationAngle;
-
+    
     Shader* shader;
+    std::string description;
+    glm::mat4 model;
 };
 
+struct Moon
+{
+    std::string name;
+    unsigned int diffuseTexture;
+
+    float scale;
+    float radiusFromPlanet;
+    
+    Planet* planet;
+
+    Shader* shader;
+    std::string description;
+    glm::mat4 model;
+};
+
+
 std::map <std::string, Planet> planets;
+std::map <std::string, Moon> moons;
+
+std::vector<std::string> planetsNames;
+int currentPlanetIndex = 0;
 
 int main()
 {
@@ -325,7 +351,8 @@ int main()
         "MERCURY",
         mercury_texture, 0, 0,
         2.0f, 0.24f, 0.3f, 0.0f, 0.0f,
-        &basic_planet_shader
+        &basic_planet_shader,
+        "Najmniejsza i najbliższa Słońcu planeta. Nie ma atmosfery, która zatrzymywałaby ciepło, więc temperatury wahają się tam od ekstremalnego mrozu wnocy po piekielny upał w dzień. Rok trwa tam tylko 88 dni."
     };
 
     planets["Venus"] = 
@@ -333,7 +360,17 @@ int main()
         "VENUS",
         venus_texture, 0, 0,
         4.0f, 0.62f, 0.3f, 0.0f, 0.0f,
-        &basic_planet_shader
+        &basic_planet_shader,
+        "Często nazywana „siostrą Ziemi” ze względu na podobną wielkość. Ma jednak gęstą atmosferę z dwutlenku węgla, która wywołuje gigantyczny efekt cieplarniany – jest najgorętszą planetą w Układzie Słonecznym. Co ciekawe, obraca się w przeciwną stronę niż większość planet."
+    };
+
+    planets["Earth"] = 
+    {
+        "EARTH",
+        earth_texture, earth_specular_map_texture, earth_normals_texture,
+        6.0f, 1.0f, 0.3f, 0.0f, 0.0f,
+        &earth_shader,
+        "Najdalsza planeta od Słońca. Panują tam najsilniejsze wiatry w Układzie Słonecznym, osiągające prędkość ponad 2000 km/h. Ma piękny, głęboki niebieski kolor i jest lodowym olbrzymem."
     };
 
     planets["Mars"] = 
@@ -341,7 +378,8 @@ int main()
         "MARS",
         mars_texture, 0, 0,
         8.0f, 1.88f, 0.3f, 0.0f, 0.0f,
-        &basic_planet_shader
+        &basic_planet_shader,
+        "„Czerwona Planeta”. Swój kolor zawdzięcza tlenkowi żelaza (rdzy) na powierzchni. Ma najwyższą górę w Układzie Słonecznym – Olympus Mons, która jest trzy razy wyższa od Mount Everestu."
     };
 
     planets["Jupiter"] = 
@@ -349,7 +387,8 @@ int main()
         "JUPITER",
         jupiter_texture, 0, 0,
         10.0f, 12.0f, 0.3f, 0.0f, 0.0f,
-        &basic_planet_shader
+        &basic_planet_shader,
+        "Gazowy olbrzym i największa planeta w układzie. Jest tak wielki, że mógłby pomieścić w sobie wszystkie pozostałe planety razem wzięte. Jego najbardziej znaną cechą jest Wielka Czerwona Plama – gigantyczny huragan wiejący od setek lat."
     };
 
     planets["Saturn"] = 
@@ -357,7 +396,8 @@ int main()
         "SATURN",
         saturn_texture, 0, 0,
         12.0f,29.5f, 0.3f, 0.0f, 0.0f,
-        &basic_planet_shader
+        &basic_planet_shader,
+        "Drugi pod względem wielkości gazowy olbrzym, słynący z najbardziej rozbudowanego systemu pierścieni, składających się głównie z lodu i pyłu. Saturn jest tak lekki (ma małą gęstość), że gdyby wrzucić go do gigantycznego basenu z wodą, unosiłby się na powierzchni."
     };
 
     planets["Uranus"] = 
@@ -365,7 +405,8 @@ int main()
         "URANUS",
         uranus_texture, 0, 0,
         14.0f,84.0f, 0.3f, 0.0f, 0.0f,
-        &basic_planet_shader
+        &basic_planet_shader,
+        "Lodowy olbrzym o charakterystycznym błękitnym kolorze (dzięki metanowi). Jest unikalny, ponieważ „leży na boku” – jego oś obrotu jest bardzo silnie nachylona, co sprawia, że toczy się po orbicie jak piłka."
     };
 
     planets["Neptun"] = 
@@ -373,12 +414,31 @@ int main()
         "NEPTUN",
         neptun_texture, 0, 0,
         16.0f, 165.0f, 0.3f, 0.0f, 0.0f,
-        &basic_planet_shader
+        &basic_planet_shader,
+        "Najdalsza planeta od Słońca. Panują tam najsilniejsze wiatry w Układzie Słonecznym, osiągające prędkość ponad 2000 km/h. Ma piękny, głęboki niebieski kolor i jest lodowym olbrzymem."
     };
     
+    for (auto& [name, planet] : planets)
+    {
+        planetsNames.emplace_back(name);
+    }
+
+    moons["Moon"] = 
+    {
+        "MOON",
+        moon_texture,
+        0.3f, 2.0f, &planets["Earth"],
+        &basic_planet_shader,
+        "AA"
+    };
+
+    sf::Music music;
+    if (!music.openFromFile("resources/music/10 Minute Space Ambient Music.mp3")) return -1;
+    music.setLoop(true);
+    music.play();
+
     while (!glfwWindowShouldClose(window))
     {
-        
         processInput(window);
         
         int alive_particles = 0;
@@ -447,13 +507,46 @@ int main()
 
         float CURRENT_TIME = (float)glfwGetTime() * TIME_MULTIPLER;
         
+        
+        for (auto& [name, planet] : planets)
+        {
+            planet.rotationAngle = (2.0f * PI_NUMBER / planet.orbitTime) * CURRENT_TIME;
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::rotate(model, planet.rotationAngle, glm::vec3(0.0f, 1.0f, 0.0f));
+            model = glm::translate(model, glm::vec3(planet.orbitRadius, 0.0f, 0.0f));
+            model = glm::scale(model, glm::vec3(planet.scale));
+            planet.model = model;
+        }
+        
+        for (auto& [name, moon] : moons)
+        {
+            float moon_rotation = (float)glfwGetTime() * 0.8f;
+            glm::mat4 moon_model = glm::rotate(moon.planet->model, moon_rotation, glm::vec3(0.0f, 1.0f, 0.0f));
+            moon_model = glm::translate(moon_model, glm::vec3(moon.radiusFromPlanet, 0.0f, 0.0f));
+            moon_model = glm::scale(moon_model, glm::vec3(moon.scale));
+            moon.model = moon_model;
+        }
+
+        if (showPlanetZoom)
+        {
+            Planet &target = planets[currentPlanetToShow];
+
+            glm::vec3 copy_of_model = target.model[3];
+            copy_of_model.z += 1.0f;
+            cameraPos = copy_of_model;
+
+            cameraFront.x = 0.0f;
+            cameraFront.z = -1.0f;
+            cameraFront.y = 0.0f;
+        }
+
         glm ::mat4 sun_model = glm::mat4(1.0f);
         glm::mat4 earth_model = glm::mat4(1.0f);
         glm::mat4 moon_model = glm::mat4(1.0f);
         
         float rotation = float(glfwGetTime()) * 0.1f;
         sun_model = glm::rotate(sun_model, glm::radians(rotation), glm::vec3(0.0f, 1.0f, 0.0f));
-        view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp); 
+        view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
         
         sun_shader.use();
         sun_shader.setMat4("model", sun_model);
@@ -466,44 +559,6 @@ int main()
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
         
-        earth_shader.use();
-        earth_shader.setVec3("lightPos", lightPos);
-        earth_shader.setVec3("lightColor", lightColor);
-        earth_shader.setMat4("projection", projection);
-        earth_shader.setMat4("view", view);
-        earth_shader.setInt("ourTexture", 0);
-        earth_shader.setInt("specularTex", 1);
-        earth_shader.setInt("normalMap", 2);
-        earth_shader.setFloat("shininess", 2);
-        earth_shader.setVec3("viewPos", cameraPos);
-        float rotation_around_sun = (float)glfwGetTime() * 0.2f;
-        float rotation_around_own_axes = (float)glfwGetTime() * 0.8f;
-        earth_model = glm::rotate(earth_model, rotation_around_sun, glm::vec3(0.0f , 1.0f, 0.0f));
-        earth_model = glm::translate(earth_model, glm::vec3(EARTH_ORBIT_RADIUS, 0.0f, 0.0f));
-        earth_model = glm::scale(earth_model, glm::vec3(EARTH_SCALE));
-        earth_model = glm::rotate(earth_model, rotation_around_own_axes, glm::vec3(0.0f, 1.0f, 0.0f));
-
-        earth_shader.setMat4("model", earth_model);
-
-        if (showPlanetZoom)
-        {
-            glm::vec3 copy_of_earth_model = earth_model[3];
-            copy_of_earth_model.z += 1.0f;
-            cameraPos = copy_of_earth_model;
-            cameraFront.x = 0.0f;
-            cameraFront.z = -1.0f;
-            cameraFront.y = 0.0f;
-        }
-
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, earth_texture);
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, earth_specular_map_texture);
-        glActiveTexture(GL_TEXTURE2);
-        glBindTexture(GL_TEXTURE_2D, earth_normals_texture);
-        glBindVertexArray(VAO);
-        glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
-        
         basic_planet_shader.use();
         basic_planet_shader.setVec3("lightPos", lightPos);
         basic_planet_shader.setVec3("lightColor", lightColor);
@@ -511,44 +566,59 @@ int main()
         basic_planet_shader.setMat4("view", view);
         basic_planet_shader.setInt("ourTexture", 0);
         
-        float moon_rotation_earth = (float)glfwGetTime() * 0.8f;
-        moon_model = glm::rotate(earth_model, moon_rotation_earth, glm::vec3(0.0f , 1.0f, 0.0f));
-        moon_model = glm::translate(moon_model, glm::vec3(2.0f, 0.0f, 0.0f));
-        moon_model = glm::scale(moon_model, glm::vec3(0.3f));
-        basic_planet_shader.setMat4("model", moon_model);
-        
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, moon_texture);
-        glBindVertexArray(VAO);
-        glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
-
-        for (auto& [name, planet] : planets)
+        for (auto& [name, moon] : moons)
         {
-            planet.shader->use();
-            
-            planet.rotationAngle = (2.0f * PI_NUMBER / planet.orbitTime) * CURRENT_TIME;
-            glm::mat4 model = glm::mat4(1.0f);
-            model = glm::rotate(model, planet.rotationAngle, glm::vec3(0.0f, 1.0f, 0.0f));
-            model = glm::translate(model, glm::vec3(planet.orbitRadius, 0.0f, 0.0f));
-            model = glm::scale(model, glm::vec3(planet.scale));
+            moon.shader->use();
+            moon.shader->setMat4("model", moon.model);
+            moon.shader->setMat4("projection", projection);
+            moon.shader->setMat4("view", view);
+            moon.shader->setVec3("lightPos", lightPos);
+            moon.shader->setVec3("lightColor", lightColor);
+            moon.shader->setInt("diffuse", 0);
 
-            planet.shader->setMat4("model", model);
-            planet.shader->setMat4("projection", projection);
-            planet.shader->setMat4("view", view);
-            planet.shader->setVec3("lightPos", lightPos);
-            planet.shader->setVec3("lightColor", lightColor);
-            
             glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, planet.diffuseTexture);
+            glBindTexture(GL_TEXTURE_2D, moon.diffuseTexture);
 
             glBindVertexArray(VAO);
             glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
         }
+        
+        for (auto& [name, planet] : planets)
+        {
+            planet.shader->use();
+            planet.shader->setMat4("model", planet.model);
+            planet.shader->setMat4("projection", projection);
+            planet.shader->setMat4("view", view);
+            planet.shader->setVec3("viewPos", cameraPos);
+            planet.shader->setFloat("specularStrength", 0.5f);
+            planet.shader->setVec3("lightPos", lightPos);
+            planet.shader->setVec3("lightColor", lightColor);
+            planet.shader->setInt("diffuse", 0);
 
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, planet.diffuseTexture);
+
+            if (planet.specularTexture)
+            {
+                planet.shader->setFloat("shininess", 32.0f);
+                planet.shader->setInt("specularTex", 1);
+                glActiveTexture(GL_TEXTURE1);
+                glBindTexture(GL_TEXTURE_2D, planet.specularTexture);
+            }
+            if (planet.normalTexture)
+            {
+                planet.shader->setInt("normalMap", 2);
+                glActiveTexture(GL_TEXTURE2);
+                glBindTexture(GL_TEXTURE_2D, planet.normalTexture);
+            }
+            
+            glBindVertexArray(VAO);
+            glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
+        }
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE);
         glDepthMask(GL_FALSE);
-
+        
         particle_shader.use();
         particle_shader.setMat4("projection", projection);
         particle_shader.setMat4("view", view);
@@ -561,33 +631,49 @@ int main()
         glDepthMask(GL_TRUE);
         glDisable(GL_BLEND);
 
-        if (showPanel)
+        if (showPanel || showPlanetZoom)
         {
             ImGui_ImplOpenGL3_NewFrame();
             ImGui_ImplGlfw_NewFrame();
             ImGui::NewFrame();
-        
-            ImGui::Begin("Panel");
-            ImGui::Text("EARTH");
-            ImGui::SliderFloat("EARTH ORBIT RADIUS: ", &EARTH_ORBIT_RADIUS, 1.0f, 10.0f);
-            ImGui::SliderFloat("EARTH SCALE: ", &EARTH_SCALE, 0.0f, 1.0f);
-
-            for (auto& [name, planet] : planets)
+            
+            if (!showPlanetZoom)
             {
-                ImGui::Text(planet.name.c_str());
-                const std::string orbit_text = planet.name + " ORBIT RADIUS: ";
-                const std::string scale_text = planet.name + " SCALE: ";
-                const std::string orbit_time_text = planet.name + " ORBIT TIME: ";
-                ImGui::SliderFloat(orbit_text.c_str(), &planet.orbitRadius, 0.0f, 100.0f);
-                ImGui::SliderFloat(scale_text.c_str(), &planet.scale, 0.0f, 1.0f);
-                ImGui::SliderFloat(orbit_time_text.c_str(), &planet.orbitTime, 0.0f, 200.0f);
+                ImGui::Begin("Panel");
+                ImGui::SliderFloat("Time Multipler: ", &TIME_MULTIPLER, 0.0f, 1.0f);
+                for (auto& [name, planet] : planets)
+                {
+                    ImGui::Text(planet.name.c_str());
+                    const std::string orbit_text = planet.name + " ORBIT RADIUS: ";
+                    const std::string scale_text = planet.name + " SCALE: ";
+                    const std::string orbit_time_text = planet.name + " ORBIT TIME: ";
+                    ImGui::SliderFloat(orbit_text.c_str(), &planet.orbitRadius, 0.0f, 100.0f);
+                    ImGui::SliderFloat(scale_text.c_str(), &planet.scale, 0.0f, 1.0f);
+                    ImGui::SliderFloat(orbit_time_text.c_str(), &planet.orbitTime, 0.0f, 200.0f);
+                }
+            }
+            else 
+            {
+                ImGui::SetNextWindowSize(ImVec2(300, 0), ImGuiCond_Always);
+                ImGui::Begin(currentPlanetToShow.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+                ImGui::PushTextWrapPos(300.0f);
+                for (auto& [name, planet] : planets)
+                {
+                    if (currentPlanetToShow == name)
+                    {
+                        ImGui::Separator();
+
+                        ImGui::Text(planet.name.c_str());
+                        ImGui::Text(planet.description.c_str());
+                    }
+                }
             }
             ImGui::End();
-        
+
             ImGui::Render();
             ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         }
-        
+
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
@@ -679,6 +765,11 @@ void buildSphere(int sectorCount, int stackCount, float radius)
             }
         }
     }
+    std::cout << "===CREATED_A_SPHERE===\n";
+    std::cout << "Radius: " << radius << '\n';
+    std::cout << "Sector count: " << sectorCount << '\n';
+    std::cout << "Stack count: " << stackCount << '\n';
+    std::cout << "======================\n";
 }
 
 void processInput(GLFWwindow *window)
@@ -805,7 +896,7 @@ void key_callback(GLFWwindow *window, int key, int scancodem, int action, int mo
     {
         showPanel = !showPanel;
 
-        if (showPanel)
+        if (showPanel && !showPlanetZoom)
         {
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         }
@@ -819,5 +910,18 @@ void key_callback(GLFWwindow *window, int key, int scancodem, int action, int mo
     if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
     {
         showPlanetZoom = !showPlanetZoom;
+    }
+
+    if (key == GLFW_KEY_RIGHT && action == GLFW_PRESS)
+    {
+        if (planetsNames.size() != 0)
+        {
+            currentPlanetIndex++;
+            if (currentPlanetIndex > planetsNames.size() - 1)
+            {
+                currentPlanetIndex = 0;
+            }
+            currentPlanetToShow = planetsNames[currentPlanetIndex];
+        }
     }
 }
