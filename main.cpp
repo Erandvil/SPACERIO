@@ -679,11 +679,6 @@ void buildSphere(int sectorCount, int stackCount, float radius)
             }
         }
     }
-    std::cout << "===CREATED_A_SPHERE===\n";
-    std::cout << "Radius: " << radius << '\n';
-    std::cout << "Sector count: " << sectorCount << '\n';
-    std::cout << "Stack count: " << stackCount << '\n';
-    std::cout << "======================\n";
 }
 
 void processInput(GLFWwindow *window)
