@@ -181,6 +181,7 @@ int main()
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.Fonts->AddFontFromFileTTF("fonts/Roboto-Regular.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesDefault());
     ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330");
@@ -352,7 +353,7 @@ int main()
         mercury_texture, 0, 0,
         2.0f, 0.24f, 0.3f, 0.0f, 0.0f,
         &basic_planet_shader,
-        "Najmniejsza i najbliższa Słońcu planeta. Nie ma atmosfery, która zatrzymywałaby ciepło, więc temperatury wahają się tam od ekstremalnego mrozu wnocy po piekielny upał w dzień. Rok trwa tam tylko 88 dni."
+        u8"Najmniejsza i najbliższa Słońcu planeta. Nie ma atmosfery, która zatrzymywałaby ciepło, więc temperatury wahają się tam od ekstremalnego mrozu wnocy po piekielny upał w dzień. Rok trwa tam tylko 88 dni."
     };
 
     planets["Venus"] = 
@@ -361,7 +362,7 @@ int main()
         venus_texture, 0, 0,
         4.0f, 0.62f, 0.3f, 0.0f, 0.0f,
         &basic_planet_shader,
-        "Często nazywana „siostrą Ziemi” ze względu na podobną wielkość. Ma jednak gęstą atmosferę z dwutlenku węgla, która wywołuje gigantyczny efekt cieplarniany – jest najgorętszą planetą w Układzie Słonecznym. Co ciekawe, obraca się w przeciwną stronę niż większość planet."
+        u8"Często nazywana „siostrą Ziemi” ze względu na podobną wielkość. Ma jednak gęstą atmosferę z dwutlenku węgla, która wywołuje gigantyczny efekt cieplarniany – jest najgorętszą planetą w Układzie Słonecznym. Co ciekawe, obraca się w przeciwną stronę niż większość planet."
     };
 
     planets["Earth"] = 
@@ -370,7 +371,7 @@ int main()
         earth_texture, earth_specular_map_texture, earth_normals_texture,
         6.0f, 1.0f, 0.3f, 0.0f, 0.0f,
         &earth_shader,
-        "Najdalsza planeta od Słońca. Panują tam najsilniejsze wiatry w Układzie Słonecznym, osiągające prędkość ponad 2000 km/h. Ma piękny, głęboki niebieski kolor i jest lodowym olbrzymem."
+        u8"Najdalsza planeta od Słońca. Panują tam najsilniejsze wiatry w Układzie Słonecznym, osiągające prędkość ponad 2000 km/h. Ma piękny, głęboki niebieski kolor i jest lodowym olbrzymem."
     };
 
     planets["Mars"] = 
@@ -379,7 +380,7 @@ int main()
         mars_texture, 0, 0,
         8.0f, 1.88f, 0.3f, 0.0f, 0.0f,
         &basic_planet_shader,
-        "„Czerwona Planeta”. Swój kolor zawdzięcza tlenkowi żelaza (rdzy) na powierzchni. Ma najwyższą górę w Układzie Słonecznym – Olympus Mons, która jest trzy razy wyższa od Mount Everestu."
+        u8"„Czerwona Planeta”. Swój kolor zawdzięcza tlenkowi żelaza (rdzy) na powierzchni. Ma najwyższą górę w Układzie Słonecznym – Olympus Mons, która jest trzy razy wyższa od Mount Everestu."
     };
 
     planets["Jupiter"] = 
@@ -388,7 +389,7 @@ int main()
         jupiter_texture, 0, 0,
         10.0f, 12.0f, 0.3f, 0.0f, 0.0f,
         &basic_planet_shader,
-        "Gazowy olbrzym i największa planeta w układzie. Jest tak wielki, że mógłby pomieścić w sobie wszystkie pozostałe planety razem wzięte. Jego najbardziej znaną cechą jest Wielka Czerwona Plama – gigantyczny huragan wiejący od setek lat."
+        u8"Gazowy olbrzym i największa planeta w układzie. Jest tak wielki, że mógłby pomieścić w sobie wszystkie pozostałe planety razem wzięte. Jego najbardziej znaną cechą jest Wielka Czerwona Plama – gigantyczny huragan wiejący od setek lat."
     };
 
     planets["Saturn"] = 
@@ -397,7 +398,7 @@ int main()
         saturn_texture, 0, 0,
         12.0f,29.5f, 0.3f, 0.0f, 0.0f,
         &basic_planet_shader,
-        "Drugi pod względem wielkości gazowy olbrzym, słynący z najbardziej rozbudowanego systemu pierścieni, składających się głównie z lodu i pyłu. Saturn jest tak lekki (ma małą gęstość), że gdyby wrzucić go do gigantycznego basenu z wodą, unosiłby się na powierzchni."
+        u8"Drugi pod względem wielkości gazowy olbrzym, słynący z najbardziej rozbudowanego systemu pierścieni, składających się głównie z lodu i pyłu. Saturn jest tak lekki (ma małą gęstość), że gdyby wrzucić go do gigantycznego basenu z wodą, unosiłby się na powierzchni."
     };
 
     planets["Uranus"] = 
@@ -406,7 +407,7 @@ int main()
         uranus_texture, 0, 0,
         14.0f,84.0f, 0.3f, 0.0f, 0.0f,
         &basic_planet_shader,
-        "Lodowy olbrzym o charakterystycznym błękitnym kolorze (dzięki metanowi). Jest unikalny, ponieważ „leży na boku” – jego oś obrotu jest bardzo silnie nachylona, co sprawia, że toczy się po orbicie jak piłka."
+        u8"Lodowy olbrzym o charakterystycznym błękitnym kolorze (dzięki metanowi). Jest unikalny, ponieważ „leży na boku” – jego oś obrotu jest bardzo silnie nachylona, co sprawia, że toczy się po orbicie jak piłka."
     };
 
     planets["Neptun"] = 
@@ -415,7 +416,7 @@ int main()
         neptun_texture, 0, 0,
         16.0f, 165.0f, 0.3f, 0.0f, 0.0f,
         &basic_planet_shader,
-        "Najdalsza planeta od Słońca. Panują tam najsilniejsze wiatry w Układzie Słonecznym, osiągające prędkość ponad 2000 km/h. Ma piękny, głęboki niebieski kolor i jest lodowym olbrzymem."
+        u8"Najdalsza planeta od Słońca. Panują tam najsilniejsze wiatry w Układzie Słonecznym, osiągające prędkość ponad 2000 km/h. Ma piękny, głęboki niebieski kolor i jest lodowym olbrzymem."
     };
     
     for (auto& [name, planet] : planets)
