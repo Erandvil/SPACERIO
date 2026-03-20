@@ -24,6 +24,7 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 unsigned int loadTexture(const char* path);
 unsigned int loadCubeMap(std::vector<std::string> faces);
 void key_callback(GLFWwindow* window, int key, int scancodem, int action, int mods);
+void renderScene(Shader& shader, unsigned int vao, unsigned int indicesSize);
 
 int WINDOW_WIDTH = 1920;
 int WINDOW_HEIGHT = 1080;
@@ -192,6 +193,7 @@ int main()
     Shader earth_shader("shaders/earth.vs", "shaders/earth.fs");
     Shader skybox_shader("shaders/cubemap.vs", "shaders/cubemap.fs");
     Shader particle_shader("shaders/particle.vs", "shaders/particle.fs");
+    Shader shadow_shader("shaders/shadow.vs", "shaders/shadow.fs", "shaders/shadow.gs");
 
     buildSphere(36, 18, 1.0f);
 
@@ -437,11 +439,63 @@ int main()
     if (!music.openFromFile("resources/music/10 Minute Space Ambient Music.mp3")) return -1;
     music.setLoop(true);
     music.play();
+    
+    const unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
+    unsigned int depthMapFBO;
+    glGenFramebuffers(1, &depthMapFBO);
+    
+    unsigned int depthCubemap;
+    glGenTextures(1, &depthCubemap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, depthCubemap);
+
+    for (unsigned int i = 0; i < 6; i++) {
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+    }
+
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+        
+    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+    glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, depthCubemap, 0);
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     while (!glfwWindowShouldClose(window))
     {
         processInput(window);
+
+        // RENDEROWANIE CIENI
         
+        float near = 1.0f;
+        float far = 25.0f;
+        float aspect = (float)SHADOW_WIDTH/(float)SHADOW_HEIGHT;
+        glm::mat4 shadowProj = glm::perspective(glm::radians(90.0f), aspect, near, far);
+        std::vector<glm::mat4> shadowTransforms;
+        shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(1.0, 0.0, 0.0), glm::vec3(0.0, -1.0, 0.0)));
+        shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(-1.0, 0.0, 0.0), glm::vec3(0.0, -1.0, 0.0)));
+        shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(0.0, 1.0, 0.0), glm::vec3(0.0, 0.0, 1.0)));
+        shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(0.0, -1.0, 0.0), glm::vec3(0.0, 0.0, -1.0)));
+        shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(0.0, 0.0, 1.0), glm::vec3(0.0, -1.0, 0.0)));
+        shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + glm::vec3(0.0, 0.0, -1.0), glm::vec3(0.0, -1.0, 0.0)));
+        
+        glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+        glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+        glClear(GL_DEPTH_BUFFER_BIT);
+        shadow_shader.use();
+        for (unsigned int i = 0; i < 6; i++)
+        {
+            shadow_shader.setMat4("shadowMatrices[" + std::to_string(i) + "]", shadowTransforms[i]);
+        }
+        shadow_shader.setFloat("far_plane", far);
+        shadow_shader.setVec3("lightPos", lightPos);
+        renderScene(shadow_shader, VAO, indices.size());
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+        // RENDEROWANIE NORMALNE
         int alive_particles = 0;
         for (int i = 0; i < MAX_PARTICLES; i++)
         {
@@ -575,10 +629,17 @@ int main()
             moon.shader->setMat4("view", view);
             moon.shader->setVec3("lightPos", lightPos);
             moon.shader->setVec3("lightColor", lightColor);
-            moon.shader->setInt("diffuse", 0);
 
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, moon.diffuseTexture);
+            moon.shader->setInt("ourTexture", 0);
+
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, depthCubemap);
+            moon.shader->setInt("depthMap", 1);
+
+            moon.shader->setFloat("far_plane", far);
+
 
             glBindVertexArray(VAO);
             glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
@@ -594,23 +655,33 @@ int main()
             planet.shader->setFloat("specularStrength", 0.5f);
             planet.shader->setVec3("lightPos", lightPos);
             planet.shader->setVec3("lightColor", lightColor);
-            planet.shader->setInt("diffuse", 0);
+            planet.shader->setFloat("far_plane", far); // Musisz to wysłać do ShadowCalculation! [cite: 24]
 
+            // Slot 0: Tekstura dyfuzyjna (zawsze)
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, planet.diffuseTexture);
+            planet.shader->setInt("ourTexture", 0);
 
+            // Slot 1: Mapa Cieni (zawsze)
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, depthCubemap);
+            planet.shader->setInt("depthMap", 1);
+
+            // Slot 2: Mapa Specular (tylko jeśli istnieje)
             if (planet.specularTexture)
             {
-                planet.shader->setFloat("shininess", 32.0f);
-                planet.shader->setInt("specularTex", 1);
-                glActiveTexture(GL_TEXTURE1);
+                glActiveTexture(GL_TEXTURE2); // Zmienione z 1 na 2!
                 glBindTexture(GL_TEXTURE_2D, planet.specularTexture);
+                planet.shader->setInt("specularTex", 2);
+                planet.shader->setFloat("shininess", 32.0f);
             }
+            
+            // Slot 3: Mapa Normalnych (tylko jeśli istnieje)
             if (planet.normalTexture)
             {
-                planet.shader->setInt("normalMap", 2);
-                glActiveTexture(GL_TEXTURE2);
+                glActiveTexture(GL_TEXTURE3); // Zmienione z 2 na 3!
                 glBindTexture(GL_TEXTURE_2D, planet.normalTexture);
+                planet.shader->setInt("normalMap", 3);
             }
             
             glBindVertexArray(VAO);
@@ -924,5 +995,22 @@ void key_callback(GLFWwindow *window, int key, int scancodem, int action, int mo
             }
             currentPlanetToShow = planetsNames[currentPlanetIndex];
         }
+    }
+}
+
+void renderScene(Shader& shader, unsigned int vao, unsigned int indicesSize)
+{
+    shader.use();
+    glBindVertexArray(vao);
+    for (auto& [name, moon] : moons)
+    {
+        shader.setMat4("model", moon.model);
+        glDrawElements(GL_TRIANGLES, indicesSize, GL_UNSIGNED_INT, 0);
+    }
+    
+    for (auto& [name, planet] : planets)
+    {
+        shader.setMat4("model", planet.model);
+        glDrawElements(GL_TRIANGLES, indicesSize, GL_UNSIGNED_INT, 0);
     }
 }
